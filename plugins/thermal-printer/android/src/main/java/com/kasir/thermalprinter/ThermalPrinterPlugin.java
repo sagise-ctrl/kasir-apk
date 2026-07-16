@@ -390,7 +390,7 @@ public class ThermalPrinterPlugin extends Plugin {
 
                 // ── Items ─────────────────────────────────────────────────────
                 for (int i = 0; i < items.length(); i++) {
-                    JSObject item = items.getJSObject(i);
+                    JSObject item = JSObject.fromJSONObject(items.getJSONObject(i));
                     if (item == null) continue;
 
                     String itemName = item.getString("name", "");
