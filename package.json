@@ -1,0 +1,38 @@
+{
+  "name": "kasir-android",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Kasir POS - standalone Android app project (Capacitor + native ML Kit barcode scanner).",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "android:sync": "vite build && npx cap sync android",
+    "android:assembleDebug": "npm run android:sync && cd android && ./gradlew assembleDebug"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "autoprefixer": "^10.5.2",
+    "postcss": "^8.5.16",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.2"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.22.0",
+    "dexie": "^4.4.4",
+    "mlkit-barcode-scanner": "file:./plugins/mlkit-barcode-scanner",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "recharts": "^2.15.2"
+  }
+}

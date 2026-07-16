@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application>
+        <activity
+            android:name="com.kasir.mlkitbarcode.CameraActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Scanner.Translucent"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize" />
+    </application>
+
+</manifest>
