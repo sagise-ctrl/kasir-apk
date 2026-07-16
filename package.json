@@ -33,6 +33,7 @@
     "mlkit-barcode-scanner": "file:./plugins/mlkit-barcode-scanner",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "recharts": "^2.15.2"
+    "recharts": "^2.15.2",
+    "thermal-printer": "file:./plugins/thermal-printer"
   }
 }

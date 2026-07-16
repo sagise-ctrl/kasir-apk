@@ -1,0 +1,29 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace "com.kasir.thermalprinter"
+    compileSdk rootProject.ext.compileSdkVersion ?: 36
+
+    defaultConfig {
+        minSdk rootProject.ext.minSdkVersion ?: 24
+        targetSdk rootProject.ext.targetSdkVersion ?: 36
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    // Capacitor Android — referenced as local project
+    implementation project(':capacitor-android')
+
+    // AppCompat — required by Capacitor Plugin base class
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+}

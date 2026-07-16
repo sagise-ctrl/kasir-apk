@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, Btn, Input } from "../components/UI";
+import { HalamanPengaturanPrinter } from "./HalamanPengaturanPrinter";
 
 export function HalamanPengaturan() {
   const [nama, setNama] = useState("");
@@ -36,6 +37,8 @@ export function HalamanPengaturan() {
         </Btn>
       </Card>
 
+      <HalamanPengaturanPrinter />
+
       <Card className="p-5 space-y-3">
         <h3 className="font-bold text-gray-700">Info Sistem</h3>
         <div className="text-sm text-gray-500 space-y-2">
@@ -45,7 +48,9 @@ export function HalamanPengaturan() {
           </div>
           <div className="flex justify-between">
             <span>Backend</span>
-            <span className="font-semibold text-gray-700">Google Apps Script</span>
+            <span className="font-semibold text-gray-700">
+              Google Apps Script
+            </span>
           </div>
           <div className="flex justify-between">
             <span>Database</span>

@@ -3,6 +3,7 @@ import { api } from "../utils/api";
 import { rupiahFormat } from "../utils/format";
 import { Modal, Btn, Spinner, Input } from "./UI";
 import { useKeranjang } from "../context/KeranjangContext";
+import { printReceiptDirect } from "../services/printerService";
 
 export function ModalBayar({ open, onClose, onSelesai }) {
   const { items, total, diskon, dispatch } = useKeranjang();
@@ -17,6 +18,8 @@ export function ModalBayar({ open, onClose, onSelesai }) {
 
   const kasir = localStorage.getItem("kasir_nama") || "Kasir";
   const kembalian = (parseInt(uangDiterima) || 0) - total;
+  const [printing, setPrinting] = useState(false);
+  const [printMsg, setPrintMsg] = useState(null); // { ok, text }
 
   useEffect(() => {
     if (!open) {
@@ -26,23 +29,33 @@ export function ModalBayar({ open, onClose, onSelesai }) {
       setCariPel("");
       setHasilPel([]);
       setSukses(null);
+      setPrinting(false);
+      setPrintMsg(null);
     }
   }, [open]);
 
   useEffect(() => {
-    if (cariPel.trim().length < 1) { setHasilPel([]); return; }
+    if (cariPel.trim().length < 1) {
+      setHasilPel([]);
+      return;
+    }
     const t = setTimeout(async () => {
       setLoadingPel(true);
       try {
         const res = await api.searchPelanggan(cariPel);
         setHasilPel(res.data || []);
-      } finally { setLoadingPel(false); }
+      } finally {
+        setLoadingPel(false);
+      }
     }, 400);
     return () => clearTimeout(t);
   }, [cariPel]);
 
   async function prosesBayar() {
-    if (metode === "cash" && (!uangDiterima || parseInt(uangDiterima) < total)) {
+    if (
+      metode === "cash" &&
+      (!uangDiterima || parseInt(uangDiterima) < total)
+    ) {
       alert("Uang yang diterima kurang dari total belanja");
       return;
     }
@@ -94,14 +107,23 @@ export function ModalBayar({ open, onClose, onSelesai }) {
         <div className="text-center space-y-4">
           <div className="text-6xl">🎉</div>
           <div>
-            <div className="font-bold text-2xl text-gray-800">{rupiahFormat(total)}</div>
+            <div className="font-bold text-2xl text-gray-800">
+              {rupiahFormat(total)}
+            </div>
             <div className="text-sm text-gray-400 mt-1">{sukses.id_trx}</div>
           </div>
 
           {sukses.metode_bayar === "cash" && (
             <div className="bg-green-50 rounded-xl p-4 text-left space-y-2">
-              <Row label="Uang diterima" value={rupiahFormat(sukses.uang_diterima)} />
-              <Row label="Kembalian" value={rupiahFormat(sukses.kembalian)} bold />
+              <Row
+                label="Uang diterima"
+                value={rupiahFormat(sukses.uang_diterima)}
+              />
+              <Row
+                label="Kembalian"
+                value={rupiahFormat(sukses.kembalian)}
+                bold
+              />
             </div>
           )}
 
@@ -112,6 +134,59 @@ export function ModalBayar({ open, onClose, onSelesai }) {
               <Row label="ID Hutang" value={sukses.id_hutang} />
             </div>
           )}
+
+          {/* ── Cetak struk ──────────────────────────────────────────── */}
+          <div className="space-y-2">
+            <Btn
+              variant="ghost"
+              size="lg"
+              className="w-full"
+              onClick={async () => {
+                setPrinting(true);
+                setPrintMsg(null);
+                const storeName = "Toko AN";
+                const result = await printReceiptDirect({
+                  storeName,
+                  cashierName: kasir,
+                  items: items.map((i) => ({
+                    name: i.nama,
+                    qty: i.qty,
+                    price: i.harga,
+                    subtotal: i.harga * i.qty,
+                  })),
+                  subtotal: items.reduce((s, i) => s + i.harga * i.qty, 0),
+                  diskon: diskon || 0,
+                  total,
+                  payment: sukses.uang_diterima || 0,
+                  change: sukses.kembalian || 0,
+                  paymentMethod: sukses.metode_bayar || metode,
+                  transactionId: sukses.id_trx || "",
+                });
+                setPrinting(false);
+                setPrintMsg(
+                  result.ok
+                    ? { ok: true, text: "Struk berhasil dicetak" }
+                    : { ok: false, text: result.error || "Gagal cetak" },
+                );
+              }}
+              loading={printing}
+              disabled={printing}
+            >
+              {printing ? "Mencetak..." : "🖨️ Cetak Struk"}
+            </Btn>
+
+            {printMsg && (
+              <div
+                className={`text-xs text-center rounded-lg px-3 py-2 font-medium ${
+                  printMsg.ok
+                    ? "bg-green-50 text-green-700"
+                    : "bg-red-50 text-red-600"
+                }`}
+              >
+                {printMsg.ok ? "✅" : "⚠️"} {printMsg.text}
+              </div>
+            )}
+          </div>
 
           <Btn variant="success" size="lg" className="w-full" onClick={selesai}>
             Transaksi Baru
@@ -127,12 +202,16 @@ export function ModalBayar({ open, onClose, onSelesai }) {
         {/* Total */}
         <div className="bg-indigo-50 rounded-xl p-4 text-center">
           <div className="text-sm text-indigo-400 mb-1">Total Pembayaran</div>
-          <div className="text-3xl font-black text-indigo-700">{rupiahFormat(total)}</div>
+          <div className="text-3xl font-black text-indigo-700">
+            {rupiahFormat(total)}
+          </div>
         </div>
 
         {/* Pilih metode */}
         <div>
-          <div className="text-sm font-semibold text-gray-600 mb-2">Metode Pembayaran</div>
+          <div className="text-sm font-semibold text-gray-600 mb-2">
+            Metode Pembayaran
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {[
               { key: "cash", label: "💵 Cash", desc: "Bayar tunai" },
@@ -170,7 +249,9 @@ export function ModalBayar({ open, onClose, onSelesai }) {
               {[5000, 10000, 20000, 50000, 100000].map((n) => (
                 <button
                   key={n}
-                  onClick={() => setUangDiterima(String(Math.ceil(total / n) * n))}
+                  onClick={() =>
+                    setUangDiterima(String(Math.ceil(total / n) * n))
+                  }
                   className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-indigo-100
                              rounded-lg font-medium text-gray-700 transition-colors"
                 >
@@ -180,13 +261,19 @@ export function ModalBayar({ open, onClose, onSelesai }) {
             </div>
 
             {uangDiterima && (
-              <div className={`rounded-xl p-3 flex justify-between items-center ${
-                kembalian >= 0 ? "bg-green-50" : "bg-red-50"
-              }`}>
-                <span className="text-sm font-medium text-gray-600">Kembalian</span>
-                <span className={`font-bold text-lg ${
-                  kembalian >= 0 ? "text-green-600" : "text-red-600"
-                }`}>
+              <div
+                className={`rounded-xl p-3 flex justify-between items-center ${
+                  kembalian >= 0 ? "bg-green-50" : "bg-red-50"
+                }`}
+              >
+                <span className="text-sm font-medium text-gray-600">
+                  Kembalian
+                </span>
+                <span
+                  className={`font-bold text-lg ${
+                    kembalian >= 0 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
                   {rupiahFormat(Math.max(kembalian, 0))}
                 </span>
               </div>
@@ -197,13 +284,19 @@ export function ModalBayar({ open, onClose, onSelesai }) {
         {/* Tempo: pilih pelanggan */}
         {metode === "tempo" && (
           <div className="space-y-3">
-            <div className="text-sm font-semibold text-gray-600">Pilih Pelanggan</div>
+            <div className="text-sm font-semibold text-gray-600">
+              Pilih Pelanggan
+            </div>
 
             {pelanggan ? (
               <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl p-3">
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-800">{pelanggan.nama}</div>
-                  <div className="text-xs text-gray-400">{pelanggan.telp || "No HP tidak ada"}</div>
+                  <div className="font-semibold text-gray-800">
+                    {pelanggan.nama}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {pelanggan.telp || "No HP tidak ada"}
+                  </div>
                 </div>
                 <button
                   onClick={() => setPelanggan(null)}
@@ -224,21 +317,33 @@ export function ModalBayar({ open, onClose, onSelesai }) {
                              focus:outline-none focus:ring-2 focus:ring-orange-400"
                 />
                 {loadingPel && (
-                  <div className="absolute right-3 top-2.5"><Spinner size={16} /></div>
+                  <div className="absolute right-3 top-2.5">
+                    <Spinner size={16} />
+                  </div>
                 )}
                 {hasilPel.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white
-                                  border border-gray-100 rounded-xl shadow-lg overflow-hidden">
+                  <div
+                    className="absolute top-full left-0 right-0 z-10 mt-1 bg-white
+                                  border border-gray-100 rounded-xl shadow-lg overflow-hidden"
+                  >
                     {hasilPel.map((p) => (
                       <button
                         key={p.id_pelanggan}
-                        onClick={() => { setPelanggan(p); setCariPel(""); setHasilPel([]); }}
+                        onClick={() => {
+                          setPelanggan(p);
+                          setCariPel("");
+                          setHasilPel([]);
+                        }}
                         className="w-full flex items-center justify-between px-4 py-2.5
                                    hover:bg-orange-50 border-b border-gray-50 last:border-0 text-left"
                       >
                         <div>
-                          <div className="font-semibold text-sm text-gray-800">{p.nama}</div>
-                          <div className="text-xs text-gray-400">{p.telp || p.id_pelanggan}</div>
+                          <div className="font-semibold text-sm text-gray-800">
+                            {p.nama}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {p.telp || p.id_pelanggan}
+                          </div>
                         </div>
                         {p.total_hutang > 0 && (
                           <span className="text-xs text-red-500 font-semibold">
@@ -289,10 +394,13 @@ function TambahPelangganBaru({ onTambah }) {
       const res = await api.createPelanggan({ nama: nama.trim(), telp });
       onTambah(res.data);
       setOpen(false);
-      setNama(""); setTelp("");
+      setNama("");
+      setTelp("");
     } catch (e) {
       alert("Gagal: " + e.message);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!open) {
@@ -320,8 +428,12 @@ function TambahPelangganBaru({ onTambah }) {
         onChange={(e) => setTelp(e.target.value)}
       />
       <div className="flex gap-2">
-        <Btn variant="ghost" size="sm" onClick={() => setOpen(false)}>Batal</Btn>
-        <Btn variant="primary" size="sm" onClick={simpan} loading={loading}>Simpan</Btn>
+        <Btn variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          Batal
+        </Btn>
+        <Btn variant="primary" size="sm" onClick={simpan} loading={loading}>
+          Simpan
+        </Btn>
       </div>
     </div>
   );
@@ -331,7 +443,9 @@ function Row({ label, value, bold }) {
   return (
     <div className="flex justify-between text-sm">
       <span className="text-gray-500">{label}</span>
-      <span className={bold ? "font-bold text-gray-800" : "text-gray-700"}>{value}</span>
+      <span className={bold ? "font-bold text-gray-800" : "text-gray-700"}>
+        {value}
+      </span>
     </div>
   );
 }

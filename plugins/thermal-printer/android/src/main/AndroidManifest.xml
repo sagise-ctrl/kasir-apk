@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Izin Bluetooth untuk ESC/POS thermal printer.
+
+        API < 31 (Android < 12):
+          BLUETOOTH          — membaca paired devices & connect
+          BLUETOOTH_ADMIN    — cancel discovery sebelum connect (wajib untuk connect yang stabil)
+
+        API >= 31 (Android 12+):
+          BLUETOOTH_CONNECT  — membaca paired devices, connect, & membaca nama perangkat
+          (BLUETOOTH_SCAN tidak diperlukan karena kita hanya pakai bonded/paired devices)
+
+        Tidak ada izin lokasi yang dibutuhkan karena kita tidak melakukan
+        active scan untuk perangkat baru — hanya membaca daftar paired devices
+        dari sistem.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <uses-feature android:name="android.hardware.bluetooth"
+        android:required="false" />
+
+</manifest>
