@@ -23,8 +23,12 @@ export function ScanBarcodeButton({
         onScanned?.(barcode);
       },
       onNativeBarcodeDetected: async (barcode) => {
-        // Android native: CameraActivity sudah menutup diri sendiri untuk
-        // mode "single" (lihat handleBarcodeDetected di CameraActivity.java).
+        // Langsung reset state JS dan bersihkan listener — jangan tunggu
+        // event scanClosed dari native (broadcast bisa terlambat/tidak
+        // sampai). CameraActivity sudah memanggil finish() di sisi Java
+        // untuk mode "single"; stopScanning() di sisi JS memastikan
+        // isScanning jadi false dan tombol kembali normal segera.
+        await stopScanning();
         onScanned?.(barcode);
       },
     });
