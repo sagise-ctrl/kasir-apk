@@ -49,6 +49,7 @@ public class MlkitBarcodeScannerPlugin extends Plugin {
     public static final String EXTRA_CURRENT_QTY    = "current_qty";
     public static final String EXTRA_RESOLVE_ACTION = "resolve_action";
     public static final String EXTRA_QTY            = "qty";
+    public static final String EXTRA_SCAN_MODE      = "scan_mode";
 
     /** Unique session id per startScan call so we can match broadcasts. */
     private String currentSessionId = null;
@@ -91,7 +92,13 @@ public class MlkitBarcodeScannerPlugin extends Plugin {
     }
 
     // ---------------------------------------------------------------
-    // startScan — opens CameraActivity for a continuous scanning session.
+    // startScan — opens CameraActivity.
+    // mode="continuous" (default): activity stays open across many scans,
+    //   only closes on stopScan()/"Selesai" — used by the kasir cart flow.
+    // mode="single": activity closes itself as soon as one barcode is
+    //   read — used by plain search/field-fill flows (Produk, Inventori,
+    //   Tambah Produk). Same CameraActivity/analyzer, only the
+    //   post-detection behavior differs.
     // ---------------------------------------------------------------
     @PluginMethod
     public void startScan(PluginCall call) {
@@ -102,14 +109,16 @@ public class MlkitBarcodeScannerPlugin extends Plugin {
             }
 
             currentSessionId = java.util.UUID.randomUUID().toString();
+            String mode = call.getString("mode", "continuous");
 
             registerEventReceiver();
 
             Intent intent = new Intent(getActivity(), CameraActivity.class);
             intent.putExtra(CameraActivity.EXTRA_SCANNER_SESSION_ID, currentSessionId);
+            intent.putExtra(EXTRA_SCAN_MODE, mode);
             getActivity().startActivity(intent);
 
-            Log.i(TAG, "CameraActivity launched, session=" + currentSessionId);
+            Log.i(TAG, "CameraActivity launched, session=" + currentSessionId + " mode=" + mode);
 
             call.resolve();
         } catch (Exception e) {
