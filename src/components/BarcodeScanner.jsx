@@ -44,6 +44,16 @@ export function useBarcodeScanner({
   const duplicateListenerRef = useRef(null);
   const closedListenerRef = useRef(null);
 
+  // Ref mirror untuk callback props: listener native hanya didaftarkan sekali
+  // (dijaga oleh duplicateListenerRef / androidListenerRef), sehingga closure
+  // di dalamnya menangkap versi lama dari prop. Dengan menyimpan prop ke ref
+  // dan selalu memperbarui ref setiap render, listener selalu memanggil
+  // versi terbaru tanpa perlu mendaftarkan ulang.
+  const onDuplicateResolvedRef = useRef(onDuplicateResolved);
+  onDuplicateResolvedRef.current = onDuplicateResolved;
+  const onNativeBarcodeDetectedRef = useRef(onNativeBarcodeDetected);
+  onNativeBarcodeDetectedRef.current = onNativeBarcodeDetected;
+
   const isAndroidCapacitor = () => Capacitor.isNativePlatform?.() === true;
 
   const canVibrate = () =>
@@ -198,7 +208,8 @@ export function useBarcodeScanner({
             // soon as it reads a barcode and only resumes once we call
             // showFeedback()/showDuplicatePrompt() below (or its own
             // safety timeout fires) — so every event here is a fresh scan.
-            onNativeBarcodeDetected?.(barcode);
+            // Gunakan ref agar selalu memanggil versi callback terbaru.
+            onNativeBarcodeDetectedRef.current?.(barcode);
           },
         );
       }
@@ -207,7 +218,9 @@ export function useBarcodeScanner({
         duplicateListenerRef.current = await MlkitBarcodeScanner.addListener(
           "duplicateResolved",
           (payload) => {
-            onDuplicateResolved?.(payload);
+            // Gunakan ref agar selalu memanggil versi callback terbaru,
+            // bukan versi yang tertangkap saat listener pertama kali didaftarkan.
+            onDuplicateResolvedRef.current?.(payload);
           },
         );
       }

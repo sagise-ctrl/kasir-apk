@@ -361,11 +361,14 @@ public class ThermalPrinterPlugin extends Plugin {
                 // ── Ambil data dari JS ────────────────────────────────────────
                 String  storeName   = call.getString("storeName",    "TOKO");
                 String  cashier     = call.getString("cashierName",  "Kasir");
-                long    subtotal    = longVal(call.getObject("subtotal",  null), call.getString("subtotal",  "0"));
-                long    diskon      = longVal(call.getObject("diskon",    null), call.getString("diskon",    "0"));
-                long    total       = longVal(call.getObject("total",     null), call.getString("total",     "0"));
-                long    payment     = longVal(call.getObject("payment",   null), call.getString("payment",   "0"));
-                long    change      = longVal(call.getObject("change",    null), call.getString("change",    "0"));
+                // Numeric fields dikirim dari JS sebagai Number (bukan String),
+                // sehingga getString() mengembalikan default "0". Gunakan getLong()
+                // yang sudah tersedia di PluginCall versi ini.
+                long    subtotal    = nvl(call.getLong("subtotal", 0L));
+                long    diskon      = nvl(call.getLong("diskon",   0L));
+                long    total       = nvl(call.getLong("total",    0L));
+                long    payment     = nvl(call.getLong("payment",  0L));
+                long    change      = nvl(call.getLong("change",   0L));
                 String  payMethod   = call.getString("paymentMethod", "Tunai");
                 String  transId     = call.getString("transactionId", "");
                 JSArray items       = call.getArray("items", new JSArray());
@@ -534,11 +537,9 @@ public class ThermalPrinterPlugin extends Plugin {
     }
 
     /**
-     * Helper untuk membaca nilai long dari call yang bisa datang sebagai
-     * number atau string dari JS.
+     * Null-safe wrapper untuk getLong() — kembalikan 0 jika null.
+     * PluginCall.getLong(key, defaultValue) bisa tetap return null pada
+     * beberapa edge case jika field ada di data tapi nilainya JSON null.
      */
-    private static long longVal(Object ignored, String strVal) {
-        try { return Long.parseLong(strVal != null ? strVal : "0"); }
-        catch (NumberFormatException e) { return 0L; }
-    }
+    private static long nvl(Long v) { return v != null ? v : 0L; }
 }
