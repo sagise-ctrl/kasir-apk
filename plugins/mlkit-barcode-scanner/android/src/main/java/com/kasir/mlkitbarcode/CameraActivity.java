@@ -95,6 +95,16 @@ public class CameraActivity extends AppCompatActivity {
     private BarcodeScanner barcodeScanner;
     private String sessionId;
 
+    /**
+     * "continuous" (default): stays open across many scans, pauses the
+     * analyzer and waits for JS (showFeedback/showDuplicatePrompt) before
+     * resuming — used by the kasir cart flow.
+     * "single": closes itself immediately after the first barcode is read
+     * — used by plain search/field-fill flows. Same camera/analyzer, only
+     * the post-detection behavior differs.
+     */
+    private String scanMode = "continuous";
+
     /** Receiver for commands coming from JS: stop, show feedback, show duplicate prompt. */
     private BroadcastReceiver controlReceiver;
 
@@ -108,6 +118,10 @@ public class CameraActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         sessionId = getIntent().getStringExtra(EXTRA_SCANNER_SESSION_ID);
+        String modeExtra = getIntent().getStringExtra(MlkitBarcodeScannerPlugin.EXTRA_SCAN_MODE);
+        if (modeExtra != null && !modeExtra.isEmpty()) {
+            scanMode = modeExtra;
+        }
 
         // Root scrim: semi-transparent so the app screen behind stays visible
         // and dimmed (translucent theme), instead of a fullscreen black camera.
@@ -400,6 +414,17 @@ public class CameraActivity extends AppCompatActivity {
         }
         pauseAnalyzer();
 
+        if ("single".equals(scanMode)) {
+            // Single-shot mode: no JS round-trip to wait for (no cart/duplicate
+            // logic here) — deliver the barcode and close the activity right
+            // away, same as tapping "Selesai" would.
+            Log.i(TAG, "Barcode detected (single mode), closing: " + barcode);
+            vibrateFeedback(60);
+            deliverBarcode(barcode);
+            finish();
+            return;
+        }
+
         Log.i(TAG, "Barcode detected, awaiting result from JS: " + barcode);
         updateStatus("Memproses...");
 
@@ -500,18 +525,24 @@ public class CameraActivity extends AppCompatActivity {
 
             String name = (productName == null || productName.isEmpty()) ? barcode : productName;
 
+            // Default input = jumlah saat ini (semantik: user mengisi qty BARU,
+            // bukan qty tambahan). Ini konsisten dengan SET_QTY di sisi JS.
+            qtyInput.setText(String.valueOf(currentQty));
+            qtyInput.setSelection(qtyInput.getText().length());
+
             AlertDialog dialog = new AlertDialog.Builder(this)
                     .setTitle("Sudah ada di keranjang")
-                    .setMessage(name + " sudah ada di keranjang (jumlah saat ini: " + currentQty + "). Tambah berapa?")
+                    .setMessage(name + " sudah ada di keranjang. Isi jumlah baru:")
                     .setView(qtyInput)
                     .setPositiveButton("Simpan", (d, which) -> {
                         int qty;
                         try {
                             qty = Integer.parseInt(qtyInput.getText().toString().trim());
                         } catch (Exception e) {
-                            qty = 1;
+                            qty = currentQty;
                         }
                         if (qty <= 0) qty = 1;
+                        Log.d(TAG, "[DUP] Simpan: barcode=" + barcode + " newQty=" + qty);
                         deliverDuplicateResolved(barcode, "add", qty);
                         resumeAnalyzer();
                     })
@@ -533,6 +564,8 @@ public class CameraActivity extends AppCompatActivity {
     }
 
     private void deliverDuplicateResolved(String barcode, String action, int qty) {
+        Log.d(TAG, "[DUP] deliverDuplicateResolved barcode=" + barcode
+                + " action=" + action + " qty=" + qty);
         Intent i = new Intent(MlkitBarcodeScannerPlugin.ACTION_DUPLICATE_RESOLVED);
         i.putExtra(MlkitBarcodeScannerPlugin.EXTRA_BARCODE, barcode);
         i.putExtra(MlkitBarcodeScannerPlugin.EXTRA_RESOLVE_ACTION, action);

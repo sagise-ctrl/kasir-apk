@@ -218,6 +218,11 @@ export function useBarcodeScanner({
         duplicateListenerRef.current = await MlkitBarcodeScanner.addListener(
           "duplicateResolved",
           (payload) => {
+            // LOG SEMENTARA — hapus setelah bug confirmed fixed
+            console.log(
+              "[DUP][BarcodeScanner] duplicateResolved raw payload:",
+              JSON.stringify(payload),
+            );
             // Gunakan ref agar selalu memanggil versi callback terbaru,
             // bukan versi yang tertangkap saat listener pertama kali didaftarkan.
             onDuplicateResolvedRef.current?.(payload);

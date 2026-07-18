@@ -190,15 +190,56 @@ export function CariProduk({ onPilih, onQueryChange }) {
   }
 
   // Setelah dialog "sudah di keranjang" selesai (Simpan/Batal) di sisi native.
+  // qty dari dialog = jumlah BARU yang diinginkan user (SET, bukan ADD).
   function handleDuplicateResolved({ barcode, action, qty } = {}) {
-    if (action !== "add") return;
+    // LOG SEMENTARA — hapus setelah bug confirmed fixed
+    console.log("[DUP][handleDuplicateResolved] masuk:", {
+      barcode,
+      action,
+      qty,
+    });
+
+    if (action !== "add") {
+      console.log(
+        "[DUP][handleDuplicateResolved] action bukan 'add', diabaikan:",
+        action,
+      );
+      return;
+    }
+
     const jumlah = Number(qty) || 0;
-    if (jumlah <= 0) return;
+    console.log("[DUP][handleDuplicateResolved] jumlah parsed:", jumlah);
+    if (jumlah <= 0) {
+      console.log("[DUP][handleDuplicateResolved] jumlah <= 0, diabaikan");
+      return;
+    }
 
     const existing = itemsRef.current.find((i) => i.barcode === barcode);
-    if (!existing) return;
+    console.log(
+      "[DUP][handleDuplicateResolved] existing di keranjang:",
+      existing,
+    );
+    if (!existing) {
+      console.log(
+        "[DUP][handleDuplicateResolved] produk tidak ditemukan di keranjang, barcode:",
+        barcode,
+      );
+      console.log(
+        "[DUP][handleDuplicateResolved] isi keranjang saat ini:",
+        itemsRef.current.map((i) => ({ barcode: i.barcode, qty: i.qty })),
+      );
+      return;
+    }
 
-    dispatch({ type: "SET_QTY", barcode, qty: (existing.qty || 0) + jumlah });
+    // SET ke nilai yang diinput user (bukan tambah ke existing.qty).
+    // Reducer akan cap ke stok maksimal via Math.min(stok, jumlah).
+    console.log(
+      "[DUP][handleDuplicateResolved] dispatch SET_QTY barcode:",
+      barcode,
+      "qty:",
+      jumlah,
+    );
+    dispatch({ type: "SET_QTY", barcode, qty: jumlah });
   }
 
   // Pilih produk
