@@ -5,7 +5,7 @@ import { Spinner } from "./UI";
 import { useBarcodeScanner } from "./BarcodeScanner";
 import { useKeranjang } from "../context/KeranjangContext";
 
-export function CariProduk({ onPilih, onQueryChange }) {
+export function CariProduk({ onQueryChange }) {
   const [query, setQuery] = useState("");
   const [hasil, setHasil] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -80,7 +80,7 @@ export function CariProduk({ onPilih, onQueryChange }) {
       setLoading(true);
       try {
         const res = await api.searchProduct(query.trim());
-        setHasil((prev) => (query.trim().length === 0 ? [] : res.data || []));
+        setHasil(res.data || []);
       } catch {
         setHasil([]);
       } finally {
@@ -113,10 +113,82 @@ export function CariProduk({ onPilih, onQueryChange }) {
     }
   }
 
-  // Cari barcode (web ZXing / hardware scanner keyboard-wedge — single shot, tidak berubah)
+  // ─────────────────────────────────────────────────────────────────────────
+  // SATU-SATUNYA entry point untuk menambahkan produk ke keranjang.
+  // Seluruh alur (scan native, scan web/hardware, search manual) HARUS
+  // melewati fungsi ini agar duplicate check & dialog berlaku konsisten.
+  // ─────────────────────────────────────────────────────────────────────────
+  async function addProdukKeKeranjang(produk) {
+    const stok = Number(produk.stok) || 0;
+    if (stok === 0) {
+      alert(`Stok ${produk.nama} habis, tidak bisa ditambah ke keranjang`);
+      inputRef.current?.focus();
+      return;
+    }
+
+    const existing = itemsRef.current.find((i) => i.barcode === produk.barcode);
+
+    if (existing) {
+      // Sudah ada di keranjang — tampilkan dialog (Android native atau
+      // fallback web), lalu update qty setelah user input.
+      if (isNative) {
+        // Android native side shows the duplicate prompt dialog.
+        await showDuplicatePrompt(produk.barcode, produk.nama, existing.qty);
+      } else {
+        // Web: tampilkan dialog HTML, lalu dispatch SET_QTY.
+        const input = prompt(
+          `${produk.nama} sudah ada di keranjang.\nQty saat ini: ${existing.qty}\n\nIsi qty baru:`,
+          String(existing.qty),
+        );
+        if (input !== null) {
+          const qty = parseInt(input, 10);
+          if (qty > 0) {
+            dispatch({ type: "SET_QTY", barcode: produk.barcode, qty });
+          }
+        }
+      }
+    } else {
+      dispatch({ type: "TAMBAH", produk });
+      await showFeedback(
+        "success",
+        `${produk.nama} berhasil ditambahkan`,
+        1000,
+      );
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Entry point 1 — Android native continuous scanner
+  // ─────────────────────────────────────────────────────────────────────────
+  async function handleNativeBarcode(barcode) {
+    if (processingScanRef.current) return;
+    processingScanRef.current = true;
+
+    try {
+      const res = await api.getProduct(barcode);
+
+      if (!res.success) {
+        await showFeedback("error", "Produk tidak ditemukan", 1000);
+        return;
+      }
+
+      await addProdukKeKeranjang(res.data);
+    } catch (e) {
+      await showFeedback(
+        "error",
+        e?.message || "Gagal memproses barcode",
+        1000,
+      );
+    } finally {
+      processingScanRef.current = false;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Entry point 2 — Web ZXing camera / hardware keyboard-wedge scanner
+  // (single-shot, auto-stops after detection)
+  // ─────────────────────────────────────────────────────────────────────────
   async function cariBarcode(barcode) {
-    // Guard: kalau pencarian barcode sebelumnya masih berjalan (atau baru saja
-    // selesai), abaikan pemanggilan kedua untuk sesi scan yang sama.
     if (processingScanRef.current) return;
     processingScanRef.current = true;
 
@@ -124,8 +196,7 @@ export function CariProduk({ onPilih, onQueryChange }) {
     try {
       const res = await api.getProduct(barcode);
       if (res.success) {
-        pilih(res.data);
-        // Auto close camera setelah produk ditemukan
+        await addProdukKeKeranjang(res.data);
         stopScanning();
       } else {
         alert("Produk tidak ditemukan: " + barcode);
@@ -139,121 +210,30 @@ export function CariProduk({ onPilih, onQueryChange }) {
     }
   }
 
-  // Cari barcode — Android native continuous scanning.
-  // Kamera TIDAK ditutup di sini; hanya memberi tahu native kapan analyzer
-  // boleh resume (lewat showFeedback / showDuplicatePrompt).
-  async function handleNativeBarcode(barcode) {
-    if (processingScanRef.current) return;
-    processingScanRef.current = true;
-
-    try {
-      const res = await api.getProduct(barcode);
-
-      if (!res.success) {
-        await showFeedback("error", "Produk tidak ditemukan", 1000);
-        return;
-      }
-
-      const produk = res.data;
-      const stok = Number(produk.stok) || 0;
-      if (stok === 0) {
-        await showFeedback("error", `Stok ${produk.nama} habis`, 1000);
-        return;
-      }
-
-      const existing = itemsRef.current.find(
-        (i) => i.barcode === produk.barcode,
-      );
-      if (existing) {
-        // Sudah ada di keranjang — biarkan native yang menampilkan dialog
-        // jumlah; keranjang baru diupdate setelah user Simpan (lihat
-        // handleDuplicateResolved).
-        await showDuplicatePrompt(produk.barcode, produk.nama, existing.qty);
-        return;
-      }
-
-      dispatch({ type: "TAMBAH", produk });
-      await showFeedback(
-        "success",
-        `${produk.nama} berhasil ditambahkan`,
-        1000,
-      );
-    } catch (e) {
-      await showFeedback(
-        "error",
-        e?.message || "Gagal memproses barcode",
-        1000,
-      );
-    } finally {
-      processingScanRef.current = false;
-    }
-  }
-
-  // Setelah dialog "sudah di keranjang" selesai (Simpan/Batal) di sisi native.
-  // qty dari dialog = jumlah BARU yang diinginkan user (SET, bukan ADD).
-  function handleDuplicateResolved({ barcode, action, qty } = {}) {
-    // LOG SEMENTARA — hapus setelah bug confirmed fixed
-    console.log("[DUP][handleDuplicateResolved] masuk:", {
-      barcode,
-      action,
-      qty,
-    });
-
-    if (action !== "add") {
-      console.log(
-        "[DUP][handleDuplicateResolved] action bukan 'add', diabaikan:",
-        action,
-      );
-      return;
-    }
-
-    const jumlah = Number(qty) || 0;
-    console.log("[DUP][handleDuplicateResolved] jumlah parsed:", jumlah);
-    if (jumlah <= 0) {
-      console.log("[DUP][handleDuplicateResolved] jumlah <= 0, diabaikan");
-      return;
-    }
-
-    const existing = itemsRef.current.find((i) => i.barcode === barcode);
-    console.log(
-      "[DUP][handleDuplicateResolved] existing di keranjang:",
-      existing,
-    );
-    if (!existing) {
-      console.log(
-        "[DUP][handleDuplicateResolved] produk tidak ditemukan di keranjang, barcode:",
-        barcode,
-      );
-      console.log(
-        "[DUP][handleDuplicateResolved] isi keranjang saat ini:",
-        itemsRef.current.map((i) => ({ barcode: i.barcode, qty: i.qty })),
-      );
-      return;
-    }
-
-    // SET ke nilai yang diinput user (bukan tambah ke existing.qty).
-    // Reducer akan cap ke stok maksimal via Math.min(stok, jumlah).
-    console.log(
-      "[DUP][handleDuplicateResolved] dispatch SET_QTY barcode:",
-      barcode,
-      "qty:",
-      jumlah,
-    );
-    dispatch({ type: "SET_QTY", barcode, qty: jumlah });
-  }
-
-  // Pilih produk
-  function pilih(produk) {
-    const stok = Number(produk.stok) || 0;
-    if (stok === 0) {
-      alert(`Stok ${produk.nama} habis, tidak bisa ditambah ke keranjang`);
-      inputRef.current?.focus();
-      return;
-    }
-    onPilih(produk);
+  // ─────────────────────────────────────────────────────────────────────────
+  // Entry point 3 — Manual search / dropdown click
+  // ─────────────────────────────────────────────────────────────────────────
+  async function pilih(produk) {
+    await addProdukKeKeranjang(produk);
     setQuery("");
     setHasil([]);
     inputRef.current?.focus();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Callback dari Android native setelah dialog duplicate ditutup (Simpan/Batal).
+  // qty dari dialog = qty BARU yang diinginkan user (SET, bukan ADD).
+  // ─────────────────────────────────────────────────────────────────────────
+  function handleDuplicateResolved({ barcode, action, qty } = {}) {
+    if (action !== "add") return;
+
+    const jumlah = Number(qty) || 0;
+    if (jumlah <= 0) return;
+
+    const existing = itemsRef.current.find((i) => i.barcode === barcode);
+    if (!existing) return;
+
+    dispatch({ type: "SET_QTY", barcode, qty: jumlah });
   }
 
   // Hardware scanner (tombol fisik)

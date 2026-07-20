@@ -9,13 +9,7 @@ export function HalamanKasir() {
   const [modalBayar, setModalBayar] = useState(false);
   const [viewMobile, setViewMobile] = useState("cari"); // "cari" | "keranjang"
   const [queryCari, setQueryCari] = useState("");
-  const { items, dispatch } = useKeranjang();
-
-  function tambahProduk(produk) {
-    dispatch({ type: "TAMBAH", produk });
-    // Di mobile, pindah ke keranjang setelah tambah
-    if (window.innerWidth < 768) setViewMobile("keranjang");
-  }
+  const { items } = useKeranjang();
 
   return (
     <div className="h-full flex flex-col">
@@ -46,7 +40,7 @@ export function HalamanKasir() {
           className={`flex flex-col flex-1 overflow-visible p-4 gap-4
             ${viewMobile === "keranjang" ? "hidden md:flex" : "flex"}`}
         >
-          <CariProduk onPilih={tambahProduk} onQueryChange={setQueryCari} />
+          <CariProduk onQueryChange={setQueryCari} />
 
           {/* Foto kasir + motivasi (hanya saat belum ada produk di keranjang & belum mengetik) */}
           {items.length === 0 && queryCari.trim().length === 0 && (

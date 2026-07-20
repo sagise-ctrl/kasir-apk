@@ -47,7 +47,7 @@ function reducer(state, action) {
         .map((i) => {
           if (i.barcode !== action.barcode) return i;
 
-          const maxQty = Math.max(0, Number(i.stok) || 0);
+          const maxQty = Math.max(1, Number(i.stok) || 1);
           if (maxQty <= 0) return { ...i, qty: 0 };
 
           const nextQty = Math.min(maxQty, requested);
@@ -55,7 +55,7 @@ function reducer(state, action) {
         })
         .filter((i) => i.qty > 0);
 
-      return { ...state, items };
+      return { ...state, items: items };
     }
     case "KOSONGKAN":
       return { ...state, items: [], diskon: 0 };
