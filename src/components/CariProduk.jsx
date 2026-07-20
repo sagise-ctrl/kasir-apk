@@ -23,20 +23,15 @@ export function CariProduk({ onQueryChange }) {
   // callback barcode sempat terpanggil lebih dari sekali untuk sesi yang sama.
   const processingScanRef = useRef(false);
 
-  const { items, dispatch } = useKeranjang();
+  const itemsRef = useRef([]);
 
-  // Native (Android) barcode/duplicate listeners are registered once per
-  // scan session and their closures are NOT refreshed on every re-render
-  // (see useBarcodeScanner: androidListenerRef/duplicateListenerRef guard
-  // against re-registering). That means a plain `items` closure inside
-  // handleNativeBarcode/handleDuplicateResolved can go stale mid-session
-  // (e.g. right after a product is added, a repeat scan wouldn't see it in
-  // the cart yet). Mirror `items` into a ref so those handlers always read
-  // the *current* cart, regardless of which render's closure is invoked.
-  const itemsRef = useRef(items);
-  useEffect(() => {
+  const { items, dispatch } = useKeranjang();
+  // setelah setiap dispatch TAMBAH/SET_QTY. Ini penting karena dialog native bisa
+  // resolve SEBELUM useEffect([items]) sempat jalan (itemsRef masih stale),
+  // sehingga handleDuplicateResolved tidak menemukan item di keranjang.
+  function syncItemsRef() {
     itemsRef.current = items;
-  }, [items]);
+  }
 
   // Gunakan custom hook barcode scanner yang optimal.
   // - Web (ZXing): single-shot lama, tetap lewat cariBarcode() + stopScanning().
@@ -129,6 +124,9 @@ export function CariProduk({ onQueryChange }) {
     const existing = itemsRef.current.find((i) => i.barcode === produk.barcode);
 
     if (existing) {
+      // Sudah ada di keranjang — sync itemsRef SEBELUM await dialog
+      // (dialog bisa resolve sebelum useEffect jalan → itemsRef still stale).
+      syncItemsRef();
       // Sudah ada di keranjang — tampilkan dialog (Android native atau
       // fallback web), lalu update qty setelah user input.
       if (isNative) {
@@ -144,11 +142,13 @@ export function CariProduk({ onQueryChange }) {
           const qty = parseInt(input, 10);
           if (qty > 0) {
             dispatch({ type: "SET_QTY", barcode: produk.barcode, qty });
+            syncItemsRef();
           }
         }
       }
     } else {
       dispatch({ type: "TAMBAH", produk });
+      syncItemsRef();
       await showFeedback(
         "success",
         `${produk.nama} berhasil ditambahkan`,
